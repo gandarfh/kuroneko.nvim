@@ -51,7 +51,10 @@ function M.meeting(meeting)
 	add(table.concat(vim.tbl_filter(function(part)
 		return part and part ~= ""
 	end, header), " · "))
-	if meeting.status ~= "done" then
+	if meeting.status == "recording" then
+		add("")
+		add("> Gravando. A transcrição chega aos poucos, uns 2 minutos atrás da conversa.")
+	elseif meeting.status ~= "done" then
 		add("")
 		add(meeting.status == "failed" and ("> A transcrição falhou: " .. (meeting.statusDetail or "erro desconhecido"))
 			or "> Transcrição em andamento.")

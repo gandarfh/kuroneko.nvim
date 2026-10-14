@@ -24,8 +24,12 @@ M.keys = {
 	help = "g?",
 }
 
+--- How often a meeting still being recorded is reloaded.
+M.refresh_ms = 30000
+
 local ns = vim.api.nvim_create_namespace("kuroneko")
 local meetings = {} -- buf → { id, meeting, items }
+local following = {} -- buf → true while a reload is scheduled
 
 local function notify(message, level)
 	vim.notify("Kuroneko: " .. message, level or vim.log.levels.INFO)
@@ -74,6 +78,8 @@ local function jump_to(buf, ms)
 	end
 end
 
+local follow
+
 function M.load(buf, id, at_ms)
 	cli.run({ "meeting", tostring(id) }, nil, function(meeting, err)
 		if not vim.api.nvim_buf_is_valid(buf) then
@@ -91,7 +97,28 @@ function M.load(buf, id, at_ms)
 		elseif cursor then
 			pcall(vim.api.nvim_win_set_cursor, 0, { math.min(cursor[1], #lines), cursor[2] })
 		end
+		follow(buf, meeting)
 	end)
+end
+
+--- While a meeting is recorded (and finished right after), its transcript
+--- grows every couple of minutes: the buffer keeps up on its own while shown.
+follow = function(buf, meeting)
+	if meeting.status == "done" or meeting.status == "failed" or following[buf] then
+		return
+	end
+	following[buf] = true
+	vim.defer_fn(function()
+		following[buf] = nil
+		local state = meetings[buf]
+		if not (state and vim.api.nvim_buf_is_valid(buf)) then
+			return
+		end
+		if vim.fn.bufwinid(buf) == -1 then
+			return follow(buf, state.meeting)
+		end
+		M.load(buf, state.id)
+	end, M.refresh_ms)
 end
 
 local function reload(buf)
@@ -347,6 +374,7 @@ function M.open(id, at_ms)
 			buffer = buf,
 			callback = function()
 				meetings[buf] = nil
+				following[buf] = nil
 			end,
 		})
 	end
