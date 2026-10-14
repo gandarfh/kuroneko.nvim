@@ -1,5 +1,6 @@
--- Kuroneko meetings in Neovim: browse, read, play, name voices, take notes
--- and summarize with Claude, all through the `kuroneko` command.
+-- Kuroneko meetings in Neovim: browse, read, play, name voices, take notes,
+-- keep links, check off pendências and summarize with Claude, all through
+-- the `kuroneko` command.
 local M = {}
 
 local defaults = {
@@ -24,6 +25,8 @@ local function highlights()
 	set("KuronekoNote", "DiagnosticWarn")
 	set("KuronekoContext", "Comment")
 	set("KuronekoPlaying", "Visual")
+	set("KuronekoLink", "Underlined")
+	set("KuronekoDone", "Comment")
 end
 
 function M.setup(opts)

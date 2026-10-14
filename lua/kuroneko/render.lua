@@ -22,8 +22,56 @@ local function document_title(kind)
 	return kind:sub(1, 1):upper() .. kind:sub(2)
 end
 
+local function squash(text)
+	return vim.trim(((text or ""):gsub("%s+", " ")))
+end
+
+--- A summary line the way the command reads a pendência's text: without
+--- the bracketed times and with spaces collapsed.
+local function bare(line)
+	return squash((line:gsub("%[[^%]]*%d:%d%d[^%]]*%]", " ")))
+end
+
+--- Line of the summary body (from 1) of each pendência: the one the
+--- command says, if its text is there; else the first line with the text.
+local function summary_tasks(meeting, body)
+	local by_line = {}
+	for _, item in ipairs(meeting.summaryItems or {}) do
+		if item.kind == "task" and item.ref then
+			local text = squash(item.text)
+			local function holds(index)
+				if text == "" then
+					return false
+				end
+				return body[index] and not by_line[index] and bare(body[index]):find(text, 1, true)
+			end
+			local index = item.line and item.line + 1
+			if not holds(index) then
+				index = nil
+				for i = 1, #body do
+					if holds(i) then
+						index = i
+						break
+					end
+				end
+			end
+			if index then
+				by_line[index] = item
+			end
+		end
+	end
+	return by_line
+end
+
+--- "github.com/o/r/pull/482" out of "https://github.com/o/r/pull/482/".
+local function short_url(url)
+	return (url:gsub("^%a[%w+.-]*://", ""):gsub("/$", ""))
+end
+
 --- Returns `lines`, `items` (line number → what it is) and `highlights`
---- ({ line, col_start, col_end, group }, 0-based columns).
+--- ({ line, col_start, col_end, group }, 0-based columns). Items with
+--- `open` hold a URL or file to open; with `task`, a pendência
+--- ({ ref, done, … }) to check off.
 function M.meeting(meeting)
 	local lines, items, highlights = {}, {}, {}
 
@@ -51,6 +99,20 @@ function M.meeting(meeting)
 	add(table.concat(vim.tbl_filter(function(part)
 		return part and part ~= ""
 	end, header), " · "))
+
+	if #(meeting.links or {}) > 0 then
+		add("")
+		for _, link in ipairs(meeting.links) do
+			local prefix = "🔗 "
+			local label = link.label or link.title or short_url(link.url)
+			local address = short_url(link.url)
+			local text = prefix .. label .. (address ~= label and (" · " .. address) or "")
+			local line = add(text, { type = "link", linkId = link.id, url = link.url, label = label, open = link.url })
+			table.insert(highlights, { line, #prefix, #prefix + #label, "KuronekoLink" })
+			table.insert(highlights, { line, #prefix + #label, -1, "KuronekoContext" })
+		end
+	end
+
 	if meeting.status == "recording" then
 		add("")
 		add("> Gravando. A transcrição chega aos poucos, uns 2 minutos atrás da conversa.")
@@ -62,15 +124,34 @@ function M.meeting(meeting)
 
 	for _, document in ipairs(meeting.documents or {}) do
 		local item = { type = "document", kind = document.kind }
-		local body = vim.split(vim.trim(document.body), "\n", { plain = true })
+		local body = vim.split((document.body or ""):gsub("\r\n", "\n"), "\n", { plain = true })
+		local first, last = 1, #body
+		while first <= last and vim.trim(body[first]) == "" do
+			first = first + 1
+		end
+		while last >= first and vim.trim(body[last]) == "" do
+			last = last - 1
+		end
+		local tasks = document.kind == "summary" and summary_tasks(meeting, body) or {}
 		add("")
 		-- A summary from Claude already opens with its own "## Resumo".
-		if not (body[1] or ""):match("^#") then
+		if not vim.trim(body[first] or ""):match("^#") then
 			add("## " .. document_title(document.kind), item)
 			add("")
 		end
-		for _, line in ipairs(body) do
-			add(line, item)
+		for index = first, last do
+			local text = body[index]
+			if index == first then
+				text = text:gsub("^%s+", "")
+			end
+			if index == last then
+				text = text:gsub("%s+$", "")
+			end
+			local task = tasks[index]
+			local line = add(text, task and { type = "document", kind = document.kind, task = task } or item)
+			if task and task.done then
+				table.insert(highlights, { line, 0, -1, "KuronekoDone" })
+			end
 		end
 	end
 
@@ -86,8 +167,22 @@ function M.meeting(meeting)
 				startMs = entry.startMs,
 				playMs = entry.context and entry.context.startMs or entry.startMs,
 			}
-			local line = add("> 📝 [" .. time.clock(entry.startMs) .. at .. "] " .. entry.text, item)
-			table.insert(highlights, { line, 0, -1, "KuronekoNote" })
+			local text = entry.text or ""
+			-- A note tagged #acao is a pendência, checked off like the summary's.
+			if vim.tbl_contains(entry.tags or {}, "acao") then
+				item.task = { ref = "note:" .. entry.noteId, done = entry.resolvedAt ~= nil, text = text }
+				text = (item.task.done and "[x] " or "[ ] ") .. text
+			end
+			local line = add(vim.trim("> 📝 [" .. time.clock(entry.startMs) .. at .. "] " .. text), item)
+			table.insert(highlights, { line, 0, -1, item.task and item.task.done and "KuronekoDone" or "KuronekoNote" })
+			-- Prints (and any other file) of the note, one per line.
+			for _, attachment in ipairs(entry.attachments or {}) do
+				local prefix = "> 📎 " .. (attachment.kind == "image" and "print" or "arquivo") .. ": "
+				local file = vim.fs.basename(attachment.path)
+				local file_line = add(prefix .. file, vim.tbl_extend("force", item, { open = attachment.path }))
+				table.insert(highlights, { file_line, 0, #prefix, "KuronekoContext" })
+				table.insert(highlights, { file_line, #prefix, -1, "KuronekoLink" })
+			end
 			if entry.context then
 				local prefix = "> ↳ "
 				local context = add(prefix .. entry.context.name .. " em " .. time.clock(entry.context.startMs)

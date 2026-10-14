@@ -1,5 +1,6 @@
--- A meeting in a buffer: transcript, notes in the timeline and summary,
--- with keys to play, name voices, take notes and summarize.
+-- A meeting in a buffer: links, summary, transcript and notes in the
+-- timeline, with keys to play, name voices, take notes, keep links, check
+-- off pendências and summarize.
 local cli = require("kuroneko.cli")
 local player = require("kuroneko.player")
 local render = require("kuroneko.render")
@@ -14,7 +15,10 @@ M.keys = {
 	stop = "x",
 	rename = "r",
 	note = "a",
+	-- Deletes the note or the link under the cursor.
 	delete_note = "D",
+	link = "gl",
+	toggle_task = "c",
 	summarize = "S",
 	edit_summary = "gS",
 	next_note = "]n",
@@ -50,7 +54,8 @@ local function find_buf(name)
 	return -1
 end
 
---- What the cursor is on: the item of its line, or of the nearest one above.
+--- What the cursor is on: the item of its line, or of the nearest one above
+--- (a link only on its own line).
 local function item_at_cursor(buf)
 	local state = meetings[buf]
 	if not state then
@@ -58,8 +63,12 @@ local function item_at_cursor(buf)
 	end
 	local line = vim.api.nvim_win_get_cursor(0)[1]
 	for l = line, 1, -1 do
-		if state.items[l] then
-			return state.items[l], l
+		local item = state.items[l]
+		if item then
+			if item.type == "link" and l ~= line then
+				return nil
+			end
+			return item, l
 		end
 	end
 end
@@ -159,8 +168,23 @@ local function play_position(buf, item, line)
 	return item.playMs or item.startMs
 end
 
+--- A link in the browser, a print in its app.
+local function open(target)
+	if not target:match("^%a[%w+.-]*://") and not vim.uv.fs_stat(target) then
+		return notify("arquivo não encontrado: " .. target, vim.log.levels.WARN)
+	end
+	local _, err = vim.ui.open(target)
+	if err then
+		notify(err, vim.log.levels.ERROR)
+	end
+end
+
 local function play(buf)
 	local item, line = item_at_cursor(buf)
+	-- On the line of a link or of a print, opens it instead.
+	if item and item.open and line == vim.api.nvim_win_get_cursor(0)[1] then
+		return open(item.open)
+	end
 	local ms = item and play_position(buf, item, line)
 	if not ms then
 		return notify("nada para tocar nesta linha")
@@ -234,10 +258,25 @@ local function add_note(buf)
 	end)
 end
 
+local function delete_link(buf, item)
+	if vim.fn.confirm("Apagar o link " .. item.label .. "?", "&Sim\n&Não", 2) ~= 1 then
+		return
+	end
+	cli.run({ "link", "rm", tostring(item.linkId) }, nil, function(_, err)
+		if err then
+			return notify(err, vim.log.levels.ERROR)
+		end
+		reload(buf)
+	end)
+end
+
 local function delete_note(buf)
 	local item = item_at_cursor(buf)
+	if item and item.type == "link" then
+		return delete_link(buf, item)
+	end
 	if not (item and item.type == "note") then
-		return notify("ponha o cursor numa nota")
+		return notify("ponha o cursor numa nota ou num link")
 	end
 	if vim.fn.confirm("Apagar esta nota?", "&Sim\n&Não", 2) ~= 1 then
 		return
@@ -246,6 +285,52 @@ local function delete_note(buf)
 		if err then
 			return notify(err, vim.log.levels.ERROR)
 		end
+		reload(buf)
+	end)
+end
+
+local function add_link(buf)
+	local state = meetings[buf]
+	-- A URL just copied is the likely one.
+	local ok, copied = pcall(vim.fn.getreg, "+")
+	local default = ok and type(copied) == "string" and vim.trim(copied):match("^https?://%S+$") or nil
+	vim.ui.input({ prompt = "Link: ", default = default }, function(url)
+		if not url or vim.trim(url) == "" then
+			return
+		end
+		vim.ui.input({ prompt = "Título (Enter para deixar sem): " }, function(title)
+			if not title then
+				return
+			end
+			local args = { "link", "add", tostring(state.id), vim.trim(url) }
+			if vim.trim(title) ~= "" then
+				table.insert(args, vim.trim(title))
+			end
+			cli.run(args, nil, function(link, err)
+				if err then
+					return notify(err, vim.log.levels.ERROR)
+				end
+				notify("link guardado: " .. (link and link.label or vim.trim(url)))
+				reload(buf)
+			end)
+		end)
+	end)
+end
+
+--- Checks off (or reopens) the pendência under the cursor: a line of the
+--- summary's Pendências or a #acao note.
+local function toggle_task(buf)
+	local item = item_at_cursor(buf)
+	local task = item and item.task
+	if not task then
+		return notify("ponha o cursor numa pendência do resumo (ou numa nota #acao)")
+	end
+	local done = not task.done
+	cli.run({ "task", done and "done" or "undo", task.ref }, nil, function(_, err)
+		if err then
+			return notify(err, vim.log.levels.ERROR)
+		end
+		notify(done and "pendência feita" or "pendência reaberta")
 		reload(buf)
 	end)
 end
@@ -305,7 +390,8 @@ local function jump_note(buf, direction)
 	local line = vim.api.nvim_win_get_cursor(0)[1]
 	local target
 	for l, item in pairs(state.items) do
-		if item.type == "note" and state.items[l - 1] ~= item then
+		local above = state.items[l - 1]
+		if item.type == "note" and not (above and above.type == "note" and above.noteId == item.noteId) then
 			if direction > 0 and l > line and (not target or l < target) then
 				target = l
 			elseif direction < 0 and l < line and (not target or l > target) then
@@ -318,20 +404,37 @@ local function jump_note(buf, direction)
 	end
 end
 
+--- What `g?` shows: one line per key, leaving out the unmapped ones.
+--- `entries` are { { key, … }, text }.
+function M.key_help(entries)
+	local lines = {}
+	for _, entry in ipairs(entries) do
+		local keys = vim.tbl_filter(function(key)
+			return key and key ~= ""
+		end, entry[1])
+		if #keys > 0 then
+			table.insert(lines, table.concat(keys, " / ") .. "  " .. entry[2])
+		end
+	end
+	return table.concat(lines, "\n")
+end
+
 local function help()
 	local k = M.keys
-	notify(table.concat({
-		k.play .. "  tocar daqui (na nota: o assunto; no resumo: o [mm:ss])",
-		k.stop .. "  parar",
-		k.rename .. "  dizer quem é a voz da fala",
-		k.note .. "  nova nota neste momento (ou onde o áudio está)",
-		k.delete_note .. "  apagar a nota",
-		k.summarize .. "  gerar o resumo com o Claude",
-		k.edit_summary .. "  editar o resumo (:w salva)",
-		k.next_note .. " / " .. k.prev_note .. "  próxima / anterior nota",
-		k.reload .. "  recarregar",
-		k.close .. "  fechar",
-	}, "\n"))
+	notify(M.key_help({
+		{ { k.play }, "tocar daqui (na nota: o assunto; no resumo: o [mm:ss]); no link ou print: abrir" },
+		{ { k.stop }, "parar" },
+		{ { k.rename }, "dizer quem é a voz da fala" },
+		{ { k.note }, "nova nota neste momento (ou onde o áudio está)" },
+		{ { k.delete_note }, "apagar a nota ou o link" },
+		{ { k.link }, "guardar um link da reunião (URL e título opcional)" },
+		{ { k.toggle_task }, "marcar a pendência como feita (ou reabrir)" },
+		{ { k.summarize }, "gerar o resumo com o Claude" },
+		{ { k.edit_summary }, "editar o resumo (:w salva)" },
+		{ { k.next_note, k.prev_note }, "próxima / anterior nota" },
+		{ { k.reload }, "recarregar" },
+		{ { k.close }, "fechar" },
+	}))
 end
 
 local function map(buf)
@@ -343,6 +446,8 @@ local function map(buf)
 		rename = rename,
 		note = add_note,
 		delete_note = delete_note,
+		link = add_link,
+		toggle_task = toggle_task,
 		summarize = summarize,
 		edit_summary = edit_summary,
 		next_note = function(b)
