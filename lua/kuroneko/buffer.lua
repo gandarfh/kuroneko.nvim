@@ -39,6 +39,17 @@ local function bufname(id)
 	return "kuroneko://" .. id
 end
 
+--- The buffer named exactly `name`, or -1: `bufnr()` takes a pattern, so
+--- "kuroneko://12" would also find "kuroneko://123".
+local function find_buf(name)
+	for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+		if vim.api.nvim_buf_get_name(buf) == name then
+			return buf
+		end
+	end
+	return -1
+end
+
 --- What the cursor is on: the item of its line, or of the nearest one above.
 local function item_at_cursor(buf)
 	local state = meetings[buf]
@@ -261,7 +272,7 @@ local function edit_summary(buf)
 		end
 	end
 	local name = bufname(state.id) .. "/resumo"
-	local edit = vim.fn.bufnr(name)
+	local edit = find_buf(name)
 	if edit == -1 then
 		edit = vim.api.nvim_create_buf(true, false)
 		vim.api.nvim_buf_set_name(edit, name)
@@ -359,7 +370,7 @@ end
 --- Opens meeting `id`, optionally scrolled to `at_ms`.
 function M.open(id, at_ms)
 	local name = bufname(id)
-	local buf = vim.fn.bufnr(name)
+	local buf = find_buf(name)
 	local fresh = buf == -1
 	if fresh then
 		buf = vim.api.nvim_create_buf(true, true)
