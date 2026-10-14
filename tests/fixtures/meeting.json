@@ -1,0 +1,41 @@
+{
+  "id": 7,
+  "title": "Planejamento do Q4",
+  "startedAt": "2026-10-14T12:00:00Z",
+  "endedAt": "2026-10-14T12:30:00Z",
+  "durationMs": 1800000,
+  "status": "done",
+  "tags": [],
+  "audio": { "system": "/tmp/kuroneko-test/system.wav", "mic": "/tmp/kuroneko-test/mic.wav" },
+  "voices": [
+    { "key": "me", "label": "Você", "name": "Você", "speechMs": 60000 },
+    { "key": "c0", "label": "Pessoa 1", "name": "Ana", "personId": 1, "speechMs": 120000 }
+  ],
+  "links": [
+    { "id": 3, "url": "https://github.com/gandarfh/kuroneko/pull/482", "label": "PR #482", "createdAt": "2026-10-14T12:10:00Z" },
+    { "id": 4, "url": "https://notion.so/Plano-Q4", "title": "Plano do Q4", "label": "Plano do Q4", "createdAt": "2026-10-14T12:11:00Z" }
+  ],
+  "documents": [
+    {
+      "kind": "summary",
+      "body": "\n## Resumo\nCombinaram o plano do trimestre.\n\n## Decisões\n- Lançar em novembro [01:00]\n\n## Pendências\n- [ ] Revisar o PR — Você [01:00]\n- [x] Mandar a ata — Ana [00:10]\n",
+      "source": "claude",
+      "updatedAt": "2026-10-14T13:00:00Z"
+    }
+  ],
+  "summaryItems": [
+    { "kind": "decision", "text": "Lançar em novembro", "startMs": 60000, "done": false, "line": 5 },
+    { "kind": "task", "text": "Revisar o PR", "owner": "Você", "startMs": 60000, "done": false, "line": 8, "ref": "summary:7:8:1a2b3c4d" },
+    { "kind": "task", "text": "Mandar a ata", "owner": "Ana", "startMs": 10000, "done": true, "line": 9, "ref": "summary:7:9:5e6f7a8b" }
+  ],
+  "timeline": [
+    { "type": "speech", "startMs": 0, "endMs": 20000, "text": "Bom dia, vamos começar.", "speaker": "c0", "name": "Ana",
+      "segments": [ { "startMs": 0, "endMs": 20000, "text": "Bom dia, vamos começar." } ] },
+    { "type": "note", "startMs": 30000, "text": "", "noteId": 41, "at": "2026-10-14T12:00:30Z", "tags": [],
+      "attachments": [ { "id": 5, "kind": "image", "path": "/tmp/kuroneko-test/meetings/7/attachments/print 1.png" } ],
+      "context": { "speaker": "c0", "name": "Ana", "startMs": 0, "excerpt": "vamos começar" } },
+    { "type": "speech", "startMs": 60000, "endMs": 90000, "text": "Eu reviso o PR hoje.", "speaker": "me", "name": "Você",
+      "segments": [ { "startMs": 60000, "endMs": 90000, "text": "Eu reviso o PR hoje." } ] },
+    { "type": "note", "startMs": 95000, "text": "ligar pro fornecedor #acao", "noteId": 42, "at": "2026-10-14T12:01:35Z", "tags": ["acao"] }
+  ]
+}

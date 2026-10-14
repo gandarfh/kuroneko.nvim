@@ -1,0 +1,8 @@
+[
+  { "ref": "summary:7:8:1a2b3c4d", "source": "summary", "meetingId": 7, "meetingTitle": "Planejamento do Q4",
+    "meetingStartedAt": "2026-10-14T12:00:00Z", "text": "Revisar o PR", "owner": "Você", "startMs": 60000, "done": false },
+  { "ref": "note:42", "source": "note", "meetingId": 7, "meetingTitle": "Planejamento do Q4",
+    "meetingStartedAt": "2026-10-14T12:00:00Z", "text": "ligar pro fornecedor", "owner": "você", "startMs": 95000, "done": false },
+  { "ref": "summary:5:3:0badf00d", "source": "summary", "meetingId": 5, "meetingTitle": "Daily · 13 de out.",
+    "meetingStartedAt": "2026-10-13T12:00:00Z", "text": "Atualizar o ticket ABC-123", "done": false }
+]

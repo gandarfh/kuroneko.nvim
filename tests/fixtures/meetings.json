@@ -1,0 +1,9 @@
+[
+  { "id": 7, "title": "Planejamento do Q4", "week": "Esta semana", "startedAt": "2026-10-14T12:00:00Z",
+    "endedAt": "2026-10-14T12:30:00Z", "durationMs": 1800000, "status": "done", "tags": [], "people": ["Ana"],
+    "noteCount": 2, "documents": ["summary"], "links": [], "attachmentCount": 1, "openTaskCount": 2,
+    "newsAt": "2026-10-14T13:00:00Z", "unnamedVoiceCount": 0 },
+  { "id": 5, "title": "Daily · 13 de out.", "week": "Esta semana", "startedAt": "2026-10-13T12:00:00Z",
+    "endedAt": "2026-10-13T12:15:00Z", "durationMs": 900000, "status": "done", "tags": [], "people": [],
+    "noteCount": 0, "documents": [], "links": [], "attachmentCount": 0, "openTaskCount": 1, "unnamedVoiceCount": 1 }
+]
