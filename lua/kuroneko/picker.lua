@@ -2,6 +2,7 @@
 -- transcript as preview), vim.ui.select otherwise.
 local buffer = require("kuroneko.buffer")
 local cli = require("kuroneko.cli")
+local render = require("kuroneko.render")
 local time = require("kuroneko.time")
 
 local M = {}
@@ -12,10 +13,7 @@ local function notify(message, level)
 	vim.notify("Kuroneko: " .. message, level or vim.log.levels.INFO)
 end
 
---- Automatic titles end in " · <date>", which the list already shows.
-local function short_title(title)
-	return title:match("^(.-) · %d") or title
-end
+local short_title = render.short_title
 
 local function describe(meeting)
 	local parts = { meeting.week, time.day(meeting.startedAt), short_title(meeting.title) }
@@ -27,6 +25,10 @@ local function describe(meeting)
 	end
 	if vim.tbl_contains(meeting.documents, "summary") then
 		table.insert(parts, "resumo")
+	end
+	local open_tasks = meeting.openTaskCount or 0
+	if open_tasks > 0 then
+		table.insert(parts, open_tasks == 1 and "1 pendência" or (open_tasks .. " pendências"))
 	end
 	if meeting.status ~= "done" then
 		table.insert(parts, meeting.status == "failed" and "falhou" or "transcrevendo")

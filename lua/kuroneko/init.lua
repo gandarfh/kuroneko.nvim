@@ -8,6 +8,8 @@ local defaults = {
 	cmd = "kuroneko",
 	-- Keys in a meeting buffer; set one to false to leave it unmapped.
 	keys = {},
+	-- Keys in the pendências buffer (:Kuroneko tasks), the same way.
+	tasks_keys = {},
 	-- Options for the Telescope pickers, e.g. require("telescope.themes").get_dropdown().
 	telescope = {},
 }
@@ -34,6 +36,8 @@ function M.setup(opts)
 	require("kuroneko.cli").cmd = config.cmd
 	local buffer = require("kuroneko.buffer")
 	buffer.keys = vim.tbl_extend("force", buffer.keys, config.keys)
+	local tasks = require("kuroneko.tasks")
+	tasks.keys = vim.tbl_extend("force", tasks.keys, config.tasks_keys)
 	require("kuroneko.picker").telescope = config.telescope
 	highlights()
 	vim.api.nvim_create_autocmd("ColorScheme", {
@@ -52,6 +56,10 @@ end
 
 function M.open(id, at_ms)
 	return require("kuroneko.buffer").open(id, at_ms)
+end
+
+function M.tasks()
+	return require("kuroneko.tasks").open()
 end
 
 return M

@@ -332,6 +332,7 @@ local function toggle_task(buf)
 		end
 		notify(done and "pendência feita" or "pendência reaberta")
 		reload(buf)
+		require("kuroneko.tasks").refresh()
 	end)
 end
 
@@ -515,7 +516,17 @@ function M.current(buf)
 	return meetings[buf or vim.api.nvim_get_current_buf()]
 end
 
+--- Reloads meeting `id` if a buffer shows it.
+function M.reload_meeting(id)
+	local buf = find_buf(bufname(id))
+	if buf ~= -1 and meetings[buf] then
+		reload(buf)
+	end
+end
+
 M.summarize = summarize
 M.reload = reload
+M.paint = paint
+M.find_buf = find_buf
 
 return M

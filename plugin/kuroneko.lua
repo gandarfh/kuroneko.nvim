@@ -24,6 +24,9 @@ local subcommands = {
 	stop = function()
 		require("kuroneko.player").stop()
 	end,
+	tasks = function()
+		require("kuroneko").tasks()
+	end,
 }
 
 vim.api.nvim_create_user_command("Kuroneko", function(command)
@@ -44,8 +47,10 @@ end, {
 		if #vim.split(line, "%s+") > 2 then
 			return {}
 		end
-		return vim.tbl_filter(function(name)
+		local names = vim.tbl_filter(function(name)
 			return name:find(lead, 1, true) == 1
 		end, vim.tbl_keys(subcommands))
+		table.sort(names)
+		return names
 	end,
 })

@@ -210,6 +210,61 @@ function M.meeting(meeting)
 	return lines, items, highlights
 end
 
+--- Automatic titles end in " · <date>", which is shown next to them.
+function M.short_title(title)
+	return title:match("^(.-) · %d") or title
+end
+
+--- The pendências of `kuroneko tasks` under the meeting each came from (the
+--- command sends them newest meeting first, in the order of the recording).
+--- Same returns as `meeting`; items are { type = "meeting", meetingId } or
+--- { type = "task", task }.
+function M.tasks(list)
+	local lines, items, highlights = {}, {}, {}
+
+	local function add(text, item)
+		table.insert(lines, text)
+		if item then
+			items[#lines] = item
+		end
+		return #lines
+	end
+
+	add("# Pendências")
+	if #list == 0 then
+		add("")
+		add("Nenhuma pendência aberta.")
+		return lines, items, highlights
+	end
+	local meeting
+	for _, task in ipairs(list) do
+		if task.meetingId ~= meeting then
+			meeting = task.meetingId
+			add("")
+			local day = time.day(task.meetingStartedAt)
+			add("## " .. M.short_title(task.meetingTitle) .. (day ~= "" and (" · " .. day) or ""), {
+				type = "meeting",
+				meetingId = task.meetingId,
+			})
+		end
+		local text = (task.done and "- [x] " or "- [ ] ") .. task.text
+		if task.owner and task.owner ~= "" then
+			text = text .. " — " .. task.owner
+		end
+		local stamp = #text
+		if task.startMs then
+			text = text .. " [" .. time.clock(task.startMs) .. "]"
+		end
+		local line = add(text, { type = "task", task = task })
+		if task.done then
+			table.insert(highlights, { line, 0, -1, "KuronekoDone" })
+		elseif task.startMs then
+			table.insert(highlights, { line, stamp + 1, -1, "KuronekoTime" })
+		end
+	end
+	return lines, items, highlights
+end
+
 --- Line of the speech being heard at `ms`: the last one that started before.
 function M.line_at(items, ms)
 	local best, best_start
